@@ -6,8 +6,36 @@
 */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include <stdio.h>
+
+#include "morseBinaryTree.h"
+#include "morseTranslater.h"
+#include "keyerSettings.h"
+#include "pinsLocations.h"
+#include "speekerKeyPlayer.h"
+
+
+
+int tipState = 0;
+int ring2State = 0;
+
+int state = 0;
+
+int lastTime = 0;
+int currentTime = 0;
+
+int whiteSpaceState = 2;
 
 UART_HandleTypeDef huart2;
+
+extern "C" int _write(int file, char *ptr, int len)
+{
+  if (HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, HAL_MAX_DELAY) == HAL_OK)
+  {
+    return len;
+  }
+  return -1;
+}
 
 
 /* Private function prototypes -----------------------------------------------*/
@@ -37,10 +65,76 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
 
+  HAL_Delay(2000);
+
+  printf("UART2 initialized at 115200 baud\r\n");
+  
+  uint8_t ptr[] = "test\n";
   while (1)
   {
-	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
-	  HAL_Delay(1000);
+    
+      // Poll for pins so we wont just continue to delay dit length
+    // Makes more responsive after time without user input
+    do {
+      currentTime = HAL_GetTick();
+      if (whiteSpaceState == 0 && currentTime - lastTime >= longSignalLengthMS)
+      {
+        char currentChar = Translator.translate();
+        char s[2] = { currentChar, '\0' };
+        HAL_UART_Transmit(&huart2, (uint8_t *)s, 1, HAL_MAX_DELAY);
+        whiteSpaceState = 1;
+      }
+      if ( whiteSpaceState == 1 && currentTime - lastTime >= (longSignalLengthMS + longSignalLengthMS + shortSignalLengthMS))
+      {
+        char s[2] = { ' ', '\0' };
+        HAL_UART_Transmit(&huart2, (uint8_t *)s, 1, HAL_MAX_DELAY);
+        whiteSpaceState = 2;
+      }
+      
+      tipState = HAL_GPIO_ReadPin(TIP_PIN_PORT, TIP_PIN);
+      ring2State = HAL_GPIO_ReadPin(RING1_PIN_PORT, RING1_PIN);
+    } while (tipState != GPIO_PIN_RESET && ring2State != GPIO_PIN_RESET);
+
+    whiteSpaceState = 0;
+
+    // Check to see if we have dah pressed after dit was pressed.
+    // Allows for oscillating between dit and dah when dah is first
+    if (ring2State == GPIO_PIN_RESET && state == 1)
+    {
+      state = 1;
+    }
+    else
+    {
+      state = 0;
+    }
+    
+
+    if (tipState == GPIO_PIN_RESET && state != 1)
+    {
+      state = 1;
+      
+      SpeekerPlayer.sendShort();
+      Translator.addDot();
+    }
+    else if (ring2State == GPIO_PIN_RESET && state != 2)
+    {
+      state = 2;
+      
+      SpeekerPlayer.sendLong();
+      Translator.addDash();
+    }
+
+    lastTime = HAL_GetTick();
+    HAL_Delay(shortSignalLengthMS);
+      
+      // if (HAL_UART_Transmit(&huart2, (uint8_t *)ptr, sizeof(ptr) - 1, HAL_MAX_DELAY) == HAL_OK)
+      // {
+        
+      //   // Buzzer control - moved outside UART condition
+
+      // }
+      //HAL_GPIO_ReadPin(GPIO)
+      //HAL_Delay(1000);
   }
 
 }
@@ -107,7 +201,8 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE END USART2_Init 0 */
 
   /* USER CODE BEGIN USART2_Init 1 */
-
+  /* Enable USART2 clock */
+  __HAL_RCC_USART2_CLK_ENABLE();
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
   huart2.Init.BaudRate = 115200;
@@ -149,11 +244,38 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LD3_Pin */
-  GPIO_InitStruct.Pin = LD3_Pin;
+  // GPIO_InitStruct.Pin = LD3_Pin;
+  // GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  // GPIO_InitStruct.Pull = GPIO_NOPULL;
+  // GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  // HAL_GPIO_Init(LD3_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Buzzer*/
+  GPIO_InitStruct.Pin = BUZZER_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD3_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* Configure TIP_PIN and RING1_PIN as inputs with pull-up */
+  GPIO_InitStruct.Pin = TIP_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(TIP_PIN_PORT, &GPIO_InitStruct);
+
+  /* Configure TIP_PIN and RING1_PIN as inputs with pull-up */
+  GPIO_InitStruct.Pin = RING1_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(RING1_PIN_PORT, &GPIO_InitStruct);
+
+  /* Configure USART2 GPIO pins (PA2=TX, PA3=RX) */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF7_USART2;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
