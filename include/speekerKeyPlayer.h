@@ -2,23 +2,20 @@
 
 #include <pinsLocations.h>
 #include <keyerSettings.h>
+#include "main.h"
 
 class SpeekerKeyPlayer
 {
 public:
 
-    SpeekerKeyPlayer();//(unsigned int speekerPin, unsigned int shortPin, unsigned int longPin, 
-        //unsigned int freq, unsigned int shortLength, unsigned int longLength);
+    SpeekerKeyPlayer(unsigned int speekerPin, GPIO_TypeDef* speekerPort, unsigned int shortLength, unsigned int longLength);
 
     void sendShort();
     void sendLong();
 
 private:
     unsigned int _speekerPin;
-    unsigned int _shortPin;
-    unsigned int _longPin;
-
-    unsigned int _freq;
+    GPIO_TypeDef* _speekerPort;
 
     unsigned int _shortLength;
     unsigned int _longLength;
