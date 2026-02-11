@@ -10,10 +10,13 @@ public:
 
     SpeekerKeyPlayer(unsigned int speekerPin, GPIO_TypeDef* speekerPort, unsigned int shortLength, unsigned int longLength);
 
-    void sendShort();
-    void sendLong();
+    void playShort();
+    void playLong();
+    void playTest();
 
 private:
+    void playBeep(int);
+
     unsigned int _speekerPin;
     GPIO_TypeDef* _speekerPort;
 

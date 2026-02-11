@@ -1,10 +1,3 @@
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-*/
-/* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include <stdio.h>
 
@@ -37,7 +30,6 @@ extern "C" int _write(int file, char *ptr, int len)
   return -1;
 }
 
-
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
@@ -53,10 +45,10 @@ extern "C" void SysTick_Handler(void) {
   */
 int main(void)
 {
-  /* MCU Configuration--------------------------------------------------------*/
-
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
+
+  setvbuf(stdout, NULL, _IONBF, 0);
 
   /* Configure the system clock */
   SystemClock_Config();
@@ -64,37 +56,32 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  HAL_Delay(2000); 
+  printf("UART2 initialized at 115200 baud\n"); 
+  //HAL_Delay(300); 
+  SpeekerPlayer.playTest();
 
-  HAL_Delay(2000);
-
-  printf("UART2 initialized at 115200 baud\r\n");
-  
-  uint8_t ptr[] = "test\n";
   while (1)
   {
-    
-      // Poll for pins so we wont just continue to delay dit length
+    // Poll for pins so we wont just continue to delay dit length
     // Makes more responsive after time without user input
     do {
       currentTime = HAL_GetTick();
       if (whiteSpaceState == 0 && currentTime - lastTime >= longSignalLengthMS)
       {
         char currentChar = Translator.translate();
-        char s[2] = { currentChar, '\0' };
-        HAL_UART_Transmit(&huart2, (uint8_t *)s, 1, HAL_MAX_DELAY);
+        printf("%c", currentChar);
         whiteSpaceState = 1;
       }
       if ( whiteSpaceState == 1 && currentTime - lastTime >= (longSignalLengthMS + longSignalLengthMS + shortSignalLengthMS))
       {
-        char s[2] = { ' ', '\0' };
-        HAL_UART_Transmit(&huart2, (uint8_t *)s, 1, HAL_MAX_DELAY);
+        printf(" ");
         whiteSpaceState = 2;
       }
-      
+      HAL_Delay(5);
       tipState = HAL_GPIO_ReadPin(TIP_PIN_PORT, TIP_PIN);
       ring2State = HAL_GPIO_ReadPin(RING1_PIN_PORT, RING1_PIN);
     } while (tipState != GPIO_PIN_RESET && ring2State != GPIO_PIN_RESET);
-
     whiteSpaceState = 0;
 
     // Check to see if we have dah pressed after dit was pressed.
@@ -113,28 +100,19 @@ int main(void)
     {
       state = 1;
       
-      SpeekerPlayer.sendShort();
+      SpeekerPlayer.playShort();
       Translator.addDot();
     }
     else if (ring2State == GPIO_PIN_RESET && state != 2)
     {
       state = 2;
       
-      SpeekerPlayer.sendLong();
+      SpeekerPlayer.playLong();
       Translator.addDash();
     }
 
     lastTime = HAL_GetTick();
     HAL_Delay(shortSignalLengthMS);
-      
-      // if (HAL_UART_Transmit(&huart2, (uint8_t *)ptr, sizeof(ptr) - 1, HAL_MAX_DELAY) == HAL_OK)
-      // {
-        
-      //   // Buzzer control - moved outside UART condition
-
-      // }
-      //HAL_GPIO_ReadPin(GPIO)
-      //HAL_Delay(1000);
   }
 
 }
@@ -196,12 +174,6 @@ void SystemClock_Config(void)
 static void MX_USART2_UART_Init(void)
 {
 
-  /* USER CODE BEGIN USART2_Init 0 */
-
-  /* USER CODE END USART2_Init 0 */
-
-  /* USER CODE BEGIN USART2_Init 1 */
-  /* Enable USART2 clock */
   __HAL_RCC_USART2_CLK_ENABLE();
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
@@ -218,10 +190,6 @@ static void MX_USART2_UART_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN USART2_Init 2 */
-
-  /* USER CODE END USART2_Init 2 */
-
 }
 
 /**
@@ -232,9 +200,6 @@ static void MX_USART2_UART_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
-
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -244,11 +209,11 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LD3_Pin */
-  // GPIO_InitStruct.Pin = LD3_Pin;
-  // GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  // GPIO_InitStruct.Pull = GPIO_NOPULL;
-  // GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  // HAL_GPIO_Init(LD3_GPIO_Port, &GPIO_InitStruct);
+  GPIO_InitStruct.Pin = LD3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LD3_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : Buzzer*/
   GPIO_InitStruct.Pin = BUZZER_PIN;

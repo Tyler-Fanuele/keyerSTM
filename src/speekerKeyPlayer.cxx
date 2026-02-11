@@ -10,17 +10,57 @@ SpeekerKeyPlayer::SpeekerKeyPlayer(unsigned int speekerPin, GPIO_TypeDef* speeke
     _speekerPort = speekerPort;
 }
 
-void SpeekerKeyPlayer::sendShort()
+void SpeekerKeyPlayer::playShort()
 {
-    HAL_GPIO_WritePin(_speekerPort, _speekerPin, GPIO_PIN_SET);
-    HAL_Delay(shortSignalLengthMS);
-    HAL_GPIO_WritePin(_speekerPort, _speekerPin, GPIO_PIN_RESET);
+    playBeep(_shortLength);
 }
 
-void SpeekerKeyPlayer::sendLong()
+void SpeekerKeyPlayer::playLong()
+{
+    playBeep(_longLength);
+}
+
+void SpeekerKeyPlayer::playTest()
+{
+    // K
+    playShort();
+    HAL_Delay(_shortLength);
+    playLong();
+    HAL_Delay(_shortLength);
+    playShort();
+    HAL_Delay(shortSignalLengthMS);
+
+    // E
+    playShort();
+    HAL_Delay(shortSignalLengthMS);
+
+    // Y
+    playShort();
+    HAL_Delay(_shortLength);
+    playLong();
+    HAL_Delay(_shortLength);
+    playShort();
+    HAL_Delay(_shortLength);
+    playShort();
+    HAL_Delay(shortSignalLengthMS);
+
+    // E
+    playShort();
+    HAL_Delay(shortSignalLengthMS);
+
+    // R
+    playLong();
+    HAL_Delay(_shortLength);
+    playShort();
+    HAL_Delay(_shortLength);
+    playLong();
+    HAL_Delay(shortSignalLengthMS);
+}
+
+void SpeekerKeyPlayer::playBeep(int msDelay)
 {
     HAL_GPIO_WritePin(_speekerPort, _speekerPin, GPIO_PIN_SET);
-    HAL_Delay(longSignalLengthMS);
+    HAL_Delay(msDelay);
     HAL_GPIO_WritePin(_speekerPort, _speekerPin, GPIO_PIN_RESET);
 }
 
