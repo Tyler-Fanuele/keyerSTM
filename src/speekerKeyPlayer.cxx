@@ -1,5 +1,6 @@
 #include  <speekerKeyPlayer.h>
-
+#include <stdio.h>
+#include <morseBinaryTree.h>
 
 SpeekerKeyPlayer::SpeekerKeyPlayer(unsigned int speekerPin, GPIO_TypeDef* speekerPort, const unsigned int shortLength, const unsigned int longLength)
 {
@@ -20,41 +21,65 @@ void SpeekerKeyPlayer::playLong()
     playBeep(_longLength);
 }
 
-void SpeekerKeyPlayer::playTest()
+void SpeekerKeyPlayer::playTest(bool printTest)
 {
-    // K
-    playShort();
-    HAL_Delay(_shortLength);
-    playLong();
-    HAL_Delay(_shortLength);
-    playShort();
-    HAL_Delay(shortSignalLengthMS);
+    playStr("KEYER", 5, printTest, printTest);
+}
 
-    // E
-    playShort();
-    HAL_Delay(shortSignalLengthMS);
+void SpeekerKeyPlayer::playChar(char c, bool printInut, bool printOutput)
+{
+    if (printInut)
+    {
+        printf("%c'", c);
+    }
+    char morse[10] = {0};
+    if (!MorseBinaryTree::encodeChar(c, morse, 6))
+    {
+        return;
+    }
 
-    // Y
-    playShort();
-    HAL_Delay(_shortLength);
-    playLong();
-    HAL_Delay(_shortLength);
-    playShort();
-    HAL_Delay(_shortLength);
-    playShort();
-    HAL_Delay(shortSignalLengthMS);
+    for (int i = 0; i < 5; i++)
+    {
+        if (morse[i] == '\0')
+        {
+            break;
+        }
+        if (morse[i] == '-')
+        {
+            playLong();
+            if (printOutput)
+            {
+                printf("%c", morse[i]);
+            }
+        }
+        else if (morse[i] == '.')
+        {
+            playShort();
+            if (printOutput)
+            {
+                printf("%c", morse[i]);
+            }
+        }
+        
+        if (i != 4)
+        {
+            HAL_Delay(_shortLength);
+        }
+    }
 
-    // E
-    playShort();
-    HAL_Delay(shortSignalLengthMS);
+    if(printOutput)
+    {
+        printf("'");
+    }
+}
 
-    // R
-    playLong();
-    HAL_Delay(_shortLength);
-    playShort();
-    HAL_Delay(_shortLength);
-    playLong();
-    HAL_Delay(shortSignalLengthMS);
+void SpeekerKeyPlayer::playStr(char* str, size_t size, bool printInut ,bool printOutput)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        playChar(str[i], printInut, printOutput);
+        HAL_Delay(_longLength);
+    }
 }
 
 void SpeekerKeyPlayer::playBeep(int msDelay)

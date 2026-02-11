@@ -56,10 +56,13 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
-  HAL_Delay(2000); 
-  printf("UART2 initialized at 115200 baud\n"); 
-  //HAL_Delay(300); 
-  SpeekerPlayer.playTest();
+  HAL_Delay(1000); 
+  
+  printf("\n");
+  SpeekerPlayer.playTest(true);
+  printf(" Program\n"); 
+  printf("Small Unit %dms Long Unit %dms\n", shortSignalLengthMS, longSignalLengthMS);
+  printf("Start Output: ");
 
   while (1)
   {
