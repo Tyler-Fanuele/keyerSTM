@@ -88,57 +88,7 @@ void keyerRoutine()
 {
   while (true)
   {
-    // Poll for pins so we wont just continue to delay dit length
-    // Makes more responsive after time without user input
-    do {
-      currentTime = HAL_GetTick();
-      if (whiteSpaceState == 0 && currentTime - lastTime >= longSignalLengthMS)
-      {
-        char currentChar = Translator.translate();
-        printf("%c", currentChar);
-        whiteSpaceState = 1;
-      }
-      if ( whiteSpaceState == 1 && currentTime - lastTime >= (longSignalLengthMS + longSignalLengthMS + shortSignalLengthMS))
-      {
-        printf(" ");
-        whiteSpaceState = 2;
-      }
-      // Needed for timing. Shouldnt be too much of an issue
-      HAL_Delay(5);
-      tipState = HAL_GPIO_ReadPin(TIP_PIN_PORT, TIP_PIN);
-      ring2State = HAL_GPIO_ReadPin(RING1_PIN_PORT, RING1_PIN);
-    } while (tipState != GPIO_PIN_RESET && ring2State != GPIO_PIN_RESET);
-
-    whiteSpaceState = 0;
-
-    // Check to see if we have dah pressed after dit was pressed.
-    // Allows for oscillating between dit and dah when dah is first
-    if (ring2State == GPIO_PIN_RESET && state == 1)
-    {
-      state = 1;
-    }
-    else
-    {
-      state = 0;
-    }
-    
-    if (tipState == GPIO_PIN_RESET && state != 1)
-    {
-      state = 1;
-      
-      SpeekerPlayer.playShort();
-      Translator.addDot();
-    }
-    else if (ring2State == GPIO_PIN_RESET && state != 2)
-    {
-      state = 2;
-      
-      SpeekerPlayer.playLong();
-      Translator.addDash();
-    }
-
-    lastTime = HAL_GetTick();
-    HAL_Delay(shortSignalLengthMS);
+    getKeyerWord(NULL, NULL);
   }
 }
 
@@ -177,7 +127,10 @@ bool getKeyerWord(char* currentWord, size_t size)
       if (whiteSpaceState == 0 && currentTime - lastTime >= longSignalLengthMS)
       {
         char currentChar = Translator.translate();
-        currentWord[currentWordPosition++] = currentChar;
+        if (currentWord != NULL)
+        {
+          currentWord[currentWordPosition++] = currentChar;
+        }
         printf("%c", currentChar);
         whiteSpaceState = 1;
       }
