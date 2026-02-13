@@ -1,5 +1,6 @@
 #include "main.h"
 #include <stdio.h>
+#include <string.h>
 
 #include "morseBinaryTree.h"
 #include "morseTranslater.h"
@@ -39,6 +40,17 @@ extern "C" void SysTick_Handler(void) {
   HAL_IncTick();
 }
 
+void USART2_IRQHandler(void)
+{
+    HAL_UART_IRQHandler(&huart2); // Call HAL's UART ISR handler
+
+    printf("IN\n");
+}
+
+void keyerRoutine();
+bool spellerRoutine(char[20]);
+bool getKeyerWord(char*, size_t size);
+
 /**
   * @brief  The application entry point.
   * @retval int
@@ -60,11 +72,21 @@ int main(void)
   
   printf("\n");
   SpeekerPlayer.playTest(true);
-  printf(" Program\n"); 
-  printf("Small Unit %dms Long Unit %dms\n", shortSignalLengthMS, longSignalLengthMS);
-  printf("Start Output: ");
+  printf(" Program\r\n"); 
+  printf("Settings:\r\n WPM: %d\r\n Dit: %dms\r\n Dah: %dms\r\n", WPM, shortSignalLengthMS, longSignalLengthMS);
+  
 
-  while (1)
+
+  spellerRoutine("KEYER\0");
+
+  printf("\nDropped into regular morse, have fun!\n");
+  printf("Start Output: ");
+  keyerRoutine();
+}
+
+void keyerRoutine()
+{
+  while (true)
   {
     // Poll for pins so we wont just continue to delay dit length
     // Makes more responsive after time without user input
@@ -81,10 +103,12 @@ int main(void)
         printf(" ");
         whiteSpaceState = 2;
       }
+      // Needed for timing. Shouldnt be too much of an issue
       HAL_Delay(5);
       tipState = HAL_GPIO_ReadPin(TIP_PIN_PORT, TIP_PIN);
       ring2State = HAL_GPIO_ReadPin(RING1_PIN_PORT, RING1_PIN);
     } while (tipState != GPIO_PIN_RESET && ring2State != GPIO_PIN_RESET);
+
     whiteSpaceState = 0;
 
     // Check to see if we have dah pressed after dit was pressed.
@@ -98,7 +122,6 @@ int main(void)
       state = 0;
     }
     
-
     if (tipState == GPIO_PIN_RESET && state != 1)
     {
       state = 1;
@@ -117,7 +140,91 @@ int main(void)
     lastTime = HAL_GetTick();
     HAL_Delay(shortSignalLengthMS);
   }
+}
 
+bool spellerRoutine(char wantedWord[20])
+{
+  printf("Spell: %s\n", wantedWord);
+
+  printf("Start Output: ");
+  size_t size = 100;
+  char currentWord[size] = {0};
+  while (true)
+  {
+    getKeyerWord(currentWord, 100);
+    if (strcmp(currentWord, wantedWord) == 0)
+    {
+      printf("You Solved it! Typed: %s", wantedWord);
+      break;
+    }
+    for (size_t i = 0; i < size; i++)
+    {
+      currentWord[i] = 0;
+    }
+  }
+}
+
+bool getKeyerWord(char* currentWord, size_t size)
+{
+  lastTime = HAL_GetTick();
+  unsigned int currentWordPosition = 0;
+  while (true)
+  {
+    // Poll for pins so we wont just continue to delay dit length
+    // Makes more responsive after time without user input
+    do {
+      currentTime = HAL_GetTick();
+      if (whiteSpaceState == 0 && currentTime - lastTime >= longSignalLengthMS)
+      {
+        char currentChar = Translator.translate();
+        currentWord[currentWordPosition++] = currentChar;
+        printf("%c", currentChar);
+        whiteSpaceState = 1;
+      }
+      if ( whiteSpaceState == 1 && currentTime - lastTime >= (longSignalLengthMS + longSignalLengthMS + shortSignalLengthMS))
+      {
+        printf(" ");
+        whiteSpaceState = 2;
+        return true;
+      }
+      // Needed for timing. Shouldnt be too much of an issue
+      HAL_Delay(5);
+      tipState = HAL_GPIO_ReadPin(TIP_PIN_PORT, TIP_PIN);
+      ring2State = HAL_GPIO_ReadPin(RING1_PIN_PORT, RING1_PIN);
+    } while (tipState != GPIO_PIN_RESET && ring2State != GPIO_PIN_RESET);
+
+    whiteSpaceState = 0;
+
+    // Check to see if we have dah pressed after dit was pressed.
+    // Allows for oscillating between dit and dah when dah is first
+    if (ring2State == GPIO_PIN_RESET && state == 1)
+    {
+      state = 1;
+    }
+    else
+    {
+      state = 0;
+    }
+    
+    if (tipState == GPIO_PIN_RESET && state != 1)
+    {
+      state = 1;
+      
+      SpeekerPlayer.playShort();
+      Translator.addDot();
+    }
+    else if (ring2State == GPIO_PIN_RESET && state != 2)
+    {
+      state = 2;
+      
+      SpeekerPlayer.playLong();
+      Translator.addDash();
+    }
+
+    lastTime = HAL_GetTick();
+    HAL_Delay(shortSignalLengthMS);
+  }
+         
 }
 
 /**
@@ -193,6 +300,9 @@ static void MX_USART2_UART_Init(void)
   {
     Error_Handler();
   }
+
+  HAL_NVIC_SetPriority(USART2_IRQn, 1, 0); // Set priority level (1 is lower priority than 0)
+  HAL_NVIC_EnableIRQ(USART2_IRQn);   
 }
 
 /**
