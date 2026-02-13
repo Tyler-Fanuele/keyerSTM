@@ -7,8 +7,7 @@
 #include "keyerSettings.h"
 #include "pinsLocations.h"
 #include "speekerKeyPlayer.h"
-
-
+#include <random>
 
 int tipState = 0;
 int ring2State = 0;
@@ -21,6 +20,17 @@ int currentTime = 0;
 int whiteSpaceState = 2;
 
 UART_HandleTypeDef huart2;
+RNG_HandleTypeDef RngHandle;
+
+#define MAX_SPELLER_WORD (20) 
+#define MAX_SPELLER_WORD_AMOUNT (5) 
+const char WORDLIST[MAX_SPELLER_WORD_AMOUNT][MAX_SPELLER_WORD] = {
+  {"KEYER\0"},
+  {"TEST\0"},
+  {"TYLER\0"},
+  {"BEANS\0"},
+  {"HELLO\0"}
+};
 
 extern "C" int _write(int file, char *ptr, int len)
 {
@@ -48,8 +58,8 @@ void USART2_IRQHandler(void)
 }
 
 void keyerRoutine();
-bool spellerRoutine(char[20]);
-bool getKeyerWord(char*, size_t size);
+bool spellerRoutine(const char[MAX_SPELLER_WORD], bool);
+bool getKeyerWord(char*, size_t size = 0);
 
 /**
   * @brief  The application entry point.
@@ -59,6 +69,9 @@ int main(void)
 {
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
+  __HAL_RCC_RNG_CLK_ENABLE();
+  HAL_RNG_Init(&RngHandle);
+  
 
   setvbuf(stdout, NULL, _IONBF, 0);
 
@@ -75,9 +88,12 @@ int main(void)
   printf(" Program\r\n"); 
   printf("Settings:\r\n WPM: %d\r\n Dit: %dms\r\n Dah: %dms\r\n", WPM, shortSignalLengthMS, longSignalLengthMS);
   
+  uint32_t randomNumber;
+  HAL_RNG_GenerateRandomNumber(&RngHandle, &randomNumber);
 
+  int diceRoll = randomNumber % (MAX_SPELLER_WORD_AMOUNT + 1);
 
-  spellerRoutine("KEYER\0");
+  spellerRoutine(WORDLIST[diceRoll], true);
 
   printf("\nDropped into regular morse, have fun!\n");
   printf("Start Output: ");
@@ -88,26 +104,29 @@ void keyerRoutine()
 {
   while (true)
   {
-    getKeyerWord(NULL, NULL);
+    getKeyerWord(NULL);
   }
 }
 
-bool spellerRoutine(char wantedWord[20])
+bool spellerRoutine(const char wantedWord[MAX_SPELLER_WORD], bool showAnswer)
 {
   printf("Spell: %s\n", wantedWord);
-
+  if (showAnswer)
+  {
+    SpeekerPlayer.playStr(wantedWord, MAX_SPELLER_WORD, true, true);
+    printf("\n");
+  }
   printf("Start Output: ");
-  size_t size = 100;
-  char currentWord[size] = {0};
+  char currentWord[MAX_SPELLER_WORD] = {0};
   while (true)
   {
-    getKeyerWord(currentWord, 100);
+    getKeyerWord(currentWord, MAX_SPELLER_WORD);
     if (strcmp(currentWord, wantedWord) == 0)
     {
       printf("You Solved it! Typed: %s", wantedWord);
       break;
     }
-    for (size_t i = 0; i < size; i++)
+    for (size_t i = 0; i < MAX_SPELLER_WORD; i++)
     {
       currentWord[i] = 0;
     }

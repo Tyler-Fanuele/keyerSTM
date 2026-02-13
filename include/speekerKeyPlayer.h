@@ -14,7 +14,7 @@ public:
     void playLong();
     void playTest(bool printTest = false);
     void playChar(char c, bool printInut = false ,bool printOutput = false);
-    void playStr(char* str, size_t size, bool printInut = false ,bool printOutput = false);
+    void playStr(const char* str, size_t size, bool printInut = false ,bool printOutput = false);
 
 private:
     void playBeep(int);

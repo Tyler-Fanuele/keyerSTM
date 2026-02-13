@@ -73,10 +73,14 @@ void SpeekerKeyPlayer::playChar(char c, bool printInut, bool printOutput)
     }
 }
 
-void SpeekerKeyPlayer::playStr(char* str, size_t size, bool printInut ,bool printOutput)
+void SpeekerKeyPlayer::playStr(const char* str, size_t size, bool printInut ,bool printOutput)
 {
     for (size_t i = 0; i < size; i++)
     {
+        if (str[i] == '\0')
+        {
+            break;
+        }
         playChar(str[i], printInut, printOutput);
         HAL_Delay(_longLength);
     }
