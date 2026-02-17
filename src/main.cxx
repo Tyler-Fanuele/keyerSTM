@@ -9,27 +9,25 @@
 #include "speekerKeyPlayer.h"
 #include <random>
 
-int tipState = 0;
-int ring2State = 0;
-
-int state = 0;
-
-int lastTime = 0;
-int currentTime = 0;
-
-int whiteSpaceState = 2;
-
 UART_HandleTypeDef huart2;
 RNG_HandleTypeDef RngHandle;
 
-#define MAX_SPELLER_WORD (20) 
-#define MAX_SPELLER_WORD_AMOUNT (5) 
+#define MAX_SPELLER_WORD (15) 
+#define MAX_SPELLER_WORD_AMOUNT (13) 
 const char WORDLIST[MAX_SPELLER_WORD_AMOUNT][MAX_SPELLER_WORD] = {
   {"KEYER\0"},
   {"TEST\0"},
   {"TYLER\0"},
   {"BEANS\0"},
-  {"HELLO\0"}
+  {"HELLO\0"},
+  {"EMILY\0"},
+  {"WORLD\0"},
+  {"THINGS\0"},
+  {"33WSE3\0"},
+  {"KYLKYL\0"},
+  {"CONOR\0"},
+  {"JOHN\0"},
+  {"CLOCK\0"}
 };
 
 extern "C" int _write(int file, char *ptr, int len)
@@ -41,20 +39,27 @@ extern "C" int _write(int file, char *ptr, int len)
   return -1;
 }
 
+void getRandomNumber(uint32_t* last)
+{
+  uint32_t randomNumber;
+  while ((HAL_RNG_GenerateRandomNumber(&RngHandle, &randomNumber) != HAL_OK) || ((randomNumber % MAX_SPELLER_WORD_AMOUNT) == ((*last) % MAX_SPELLER_WORD_AMOUNT)));
+  (*last) = randomNumber;
+}
+
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 
-extern "C" void SysTick_Handler(void) {
-  HAL_IncTick();
+extern "C" void SysTick_Handler(void)
+{
+    HAL_IncTick();
+    HAL_SYSTICK_IRQHandler();
 }
 
 void USART2_IRQHandler(void)
 {
     HAL_UART_IRQHandler(&huart2); // Call HAL's UART ISR handler
-
-    printf("IN\n");
 }
 
 void keyerRoutine();
@@ -69,35 +74,44 @@ int main(void)
 {
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-  __HAL_RCC_RNG_CLK_ENABLE();
-  HAL_RNG_Init(&RngHandle);
-  
-
   setvbuf(stdout, NULL, _IONBF, 0);
-
-  /* Configure the system clock */
-  SystemClock_Config();
-
+  SystemClock_Config(); 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  // malloc(sizeof(char*) * 10);
+  __HAL_RCC_RNG_CLK_ENABLE();
+
+  RngHandle.Instance = RNG;
+
+  if (HAL_RNG_Init(&RngHandle) != HAL_OK)
+  {
+      Error_Handler();
+  }
   HAL_Delay(1000); 
-  
+
+
   printf("\n");
   SpeekerPlayer.playTest(true);
   printf(" Program\r\n"); 
+  HAL_Delay(200); 
+  SpeekerPlayer.playChar('R');
   printf("Settings:\r\n WPM: %d\r\n Dit: %dms\r\n Dah: %dms\r\n", WPM, shortSignalLengthMS, longSignalLengthMS);
+  for (int i = 0; i < 3; i++)
+  {
+    HAL_Delay(500);
+    printf("."); 
+  }
+  HAL_Delay(1000);
+  printf("\n");
   
-  uint32_t randomNumber;
-  HAL_RNG_GenerateRandomNumber(&RngHandle, &randomNumber);
+  uint32_t randomNumber = 0;
 
-  int diceRoll = randomNumber % (MAX_SPELLER_WORD_AMOUNT + 1);
-
-  spellerRoutine(WORDLIST[diceRoll], true);
-
-  printf("\nDropped into regular morse, have fun!\n");
-  printf("Start Output: ");
-  keyerRoutine();
+  while(true)
+  {
+    getRandomNumber(&randomNumber);
+    spellerRoutine(WORDLIST[randomNumber % MAX_SPELLER_WORD_AMOUNT], true);
+  }
 }
 
 void keyerRoutine()
@@ -110,7 +124,7 @@ void keyerRoutine()
 
 bool spellerRoutine(const char wantedWord[MAX_SPELLER_WORD], bool showAnswer)
 {
-  printf("Spell: %s\n", wantedWord);
+  printf("\nSpell: %s\n", wantedWord);
   if (showAnswer)
   {
     SpeekerPlayer.playStr(wantedWord, MAX_SPELLER_WORD, true, true);
@@ -123,7 +137,7 @@ bool spellerRoutine(const char wantedWord[MAX_SPELLER_WORD], bool showAnswer)
     getKeyerWord(currentWord, MAX_SPELLER_WORD);
     if (strcmp(currentWord, wantedWord) == 0)
     {
-      printf("You Solved it! Typed: %s", wantedWord);
+      printf("\nYou Solved it! Typed: %s", wantedWord);
       break;
     }
     for (size_t i = 0; i < MAX_SPELLER_WORD; i++)
@@ -135,7 +149,14 @@ bool spellerRoutine(const char wantedWord[MAX_SPELLER_WORD], bool showAnswer)
 
 bool getKeyerWord(char* currentWord, size_t size)
 {
-  lastTime = HAL_GetTick();
+  int tipState = 0;
+  int ring2State = 0;
+
+  int state = 0;
+  int currentTime = 0;
+
+  int whiteSpaceState = 2;
+  int lastTime = HAL_GetTick();
   unsigned int currentWordPosition = 0;
   while (true)
   {
@@ -218,8 +239,11 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType =
+      RCC_OSCILLATORTYPE_HSI
+    | RCC_OSCILLATORTYPE_HSI48;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON; 
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
@@ -231,6 +255,16 @@ void SystemClock_Config(void)
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
+  }
+
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RNG;
+  PeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_HSI48;
+
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+      Error_Handler();
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
