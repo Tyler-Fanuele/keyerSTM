@@ -11,6 +11,7 @@
 
 UART_HandleTypeDef huart2;
 RNG_HandleTypeDef RngHandle;
+I2C_HandleTypeDef i2c1;
 
 #define MAX_SPELLER_WORD (15) 
 #define MAX_SPELLER_WORD_AMOUNT (13) 
@@ -50,6 +51,7 @@ void getRandomNumber(uint32_t* last)
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_I2C1_Init(void);
 
 extern "C" void SysTick_Handler(void)
 {
@@ -74,13 +76,15 @@ int main(void)
 {
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
+  __HAL_RCC_RNG_CLK_ENABLE();
+  __I2C1_CLK_ENABLE();
   setvbuf(stdout, NULL, _IONBF, 0);
   SystemClock_Config(); 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   // malloc(sizeof(char*) * 10);
-  __HAL_RCC_RNG_CLK_ENABLE();
+
 
   RngHandle.Instance = RNG;
 
@@ -328,46 +332,65 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LD3_Pin */
-  GPIO_InitStruct.Pin = LD3_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD3_GPIO_Port, &GPIO_InitStruct);
+  GPIO_InitTypeDef ledInitStruct = {0};
+  ledInitStruct.Pin = LD3_Pin;
+  ledInitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  ledInitStruct.Pull = GPIO_NOPULL;
+  ledInitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LD3_GPIO_Port, &ledInitStruct);
 
   /*Configure GPIO pin : Buzzer*/
-  GPIO_InitStruct.Pin = BUZZER_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  GPIO_InitTypeDef buzzerInitStruct = {0};
+  buzzerInitStruct.Pin = BUZZER_PIN;
+  buzzerInitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  buzzerInitStruct.Pull = GPIO_NOPULL;
+  buzzerInitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &buzzerInitStruct);
 
   /* Configure TIP_PIN and RING1_PIN as inputs with pull-up */
-  GPIO_InitStruct.Pin = TIP_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(TIP_PIN_PORT, &GPIO_InitStruct);
+  GPIO_InitTypeDef tipInitStruct = {0};
+  tipInitStruct.Pin = TIP_PIN;
+  tipInitStruct.Mode = GPIO_MODE_INPUT;
+  tipInitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(TIP_PIN_PORT, &tipInitStruct);
 
   /* Configure TIP_PIN and RING1_PIN as inputs with pull-up */
-  GPIO_InitStruct.Pin = RING1_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(RING1_PIN_PORT, &GPIO_InitStruct);
+  GPIO_InitTypeDef ringInitStruct = {0};
+  ringInitStruct.Pin = RING1_PIN;
+  ringInitStruct.Mode = GPIO_MODE_INPUT;
+  ringInitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(RING1_PIN_PORT, &ringInitStruct);
 
   /* Configure USART2 GPIO pins (PA2=TX, PA3=RX) */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF7_USART2;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  GPIO_InitTypeDef usartGPIOInitStruct = {0};
+  usartGPIOInitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
+  usartGPIOInitStruct.Mode = GPIO_MODE_AF_OD;
+  usartGPIOInitStruct.Pull = GPIO_NOPULL;
+  usartGPIOInitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  usartGPIOInitStruct.Alternate = GPIO_AF7_USART2;
+  HAL_GPIO_Init(GPIOA, &usartGPIOInitStruct);
 
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
+  /* Configure I2C1 pints (PA9=scl PA10=sda)*/
+  GPIO_InitTypeDef i2cInitStruct = {0};
+  i2cInitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10;
+  i2cInitStruct.Mode = GPIO_MODE_AF_PP;
+  i2cInitStruct.Pull = GPIO_NOPULL;
+  i2cInitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  i2cInitStruct.Alternate = GPIO_AF4_I2C1;
+  HAL_GPIO_Init(GPIOA, &i2cInitStruct);
+
 }
 
-/* USER CODE BEGIN 4 */
+void MX_I2C1_Init(void)
+{
+      // Initialize I2C
+    i2c1.Instance = I2C1;
+    i2c1.Init.Timing = 0x00303D5B; // Adjust timing as needed
+    i2c1.Init.OwnAddress1 = 0;
+    i2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+    HAL_I2C_Init(&i2c1);
+}
 
-/* USER CODE END 4 */
 
 /**
   * @brief  This function is executed in case of error occurrence.

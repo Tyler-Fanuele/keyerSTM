@@ -8,3 +8,9 @@
 
 #define RING1_PIN (GPIO_PIN_4)
 #define RING1_PIN_PORT (GPIOB)
+
+#define LDC_SCL_PIN (GPIO_PIN_9)
+#define LCD_SCL_PIN_PORT (GPIOA)
+
+#define LDC_SDA_PIN (GPIO_PIN_10)
+#define LDC_SDA_PIN_PORT (GPIOA)
