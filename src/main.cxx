@@ -261,12 +261,22 @@ void SystemClock_Config(void)
     Error_Handler();
   }
 
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+  RCC_PeriphCLKInitTypeDef RNGPeriphClkInit = {0};
 
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RNG;
-  PeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_HSI48;
+  RNGPeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RNG;
+  RNGPeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_HSI48;
 
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  if (HAL_RCCEx_PeriphCLKConfig(&RNGPeriphClkInit) != HAL_OK)
+  {
+      Error_Handler();
+  }
+
+  RCC_PeriphCLKInitTypeDef I2C1PeriphClkInit = {0};
+
+  I2C1PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_I2C1;
+  I2C1PeriphClkInit.RngClockSelection = RCC_I2C1CLKSOURCE_HSI;
+
+  if (HAL_RCCEx_PeriphCLKConfig(&I2C1PeriphClkInit) != HAL_OK)
   {
       Error_Handler();
   }
