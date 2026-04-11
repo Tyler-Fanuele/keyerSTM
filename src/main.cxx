@@ -7,11 +7,12 @@
 #include "keyerSettings.h"
 #include "pinsLocations.h"
 #include "speekerKeyPlayer.h"
+#include "i2clcd.h"
 #include <random>
 
 UART_HandleTypeDef huart2;
 RNG_HandleTypeDef RngHandle;
-I2C_HandleTypeDef i2c1;
+I2C_HandleTypeDef hi2c1;
 
 #define MAX_SPELLER_WORD (15) 
 #define MAX_SPELLER_WORD_AMOUNT (13) 
@@ -29,6 +30,20 @@ const char WORDLIST[MAX_SPELLER_WORD_AMOUNT][MAX_SPELLER_WORD] = {
   {"CONOR\0"},
   {"JOHN\0"},
   {"CLOCK\0"}
+};
+
+enum WhiteSpaceState
+{
+  RecievedLetter = 0,
+  ProcessedLetter = 1,
+  StartOfWord = 2,
+};
+
+enum AllowedInputContact
+{
+  Unrestricted = 0,
+  AwaitingRing = 1,
+  AwaitingTip = 2,
 };
 
 extern "C" int _write(int file, char *ptr, int len)
@@ -66,7 +81,7 @@ void USART2_IRQHandler(void)
 
 void keyerRoutine();
 bool spellerRoutine(const char[MAX_SPELLER_WORD], bool);
-bool getKeyerWord(char*, size_t size = 0);
+bool getKeyerWord(char* currentWord = NULL, const char* wantedWord = NULL, size_t size = 0);
 
 /**
   * @brief  The application entry point.
@@ -83,9 +98,14 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  MX_I2C1_Init();
+
+  lcd_init(); 
+  //lcd_write("test", 0, 0);
   // malloc(sizeof(char*) * 10);
 
-
+  HAL_Delay(1000);
+  
   RngHandle.Instance = RNG;
 
   if (HAL_RNG_Init(&RngHandle) != HAL_OK)
@@ -94,6 +114,7 @@ int main(void)
   }
   HAL_Delay(1000); 
 
+  // lcd address 0x27
 
   printf("\n");
   SpeekerPlayer.playTest(true);
@@ -108,7 +129,7 @@ int main(void)
   }
   HAL_Delay(1000);
   printf("\n");
-  
+
   uint32_t randomNumber = 0;
 
   while(true)
@@ -120,10 +141,7 @@ int main(void)
 
 void keyerRoutine()
 {
-  while (true)
-  {
-    getKeyerWord(NULL);
-  }
+  while (getKeyerWord());
 }
 
 bool spellerRoutine(const char wantedWord[MAX_SPELLER_WORD], bool showAnswer)
@@ -136,30 +154,28 @@ bool spellerRoutine(const char wantedWord[MAX_SPELLER_WORD], bool showAnswer)
   }
   printf("Start Output: ");
   char currentWord[MAX_SPELLER_WORD] = {0};
-  while (true)
+  while(!getKeyerWord(currentWord, wantedWord, MAX_SPELLER_WORD));
+  printf("\nYou Solved it! Typed: %s", wantedWord);
+  for (size_t i = 0; i < MAX_SPELLER_WORD; i++)
   {
-    getKeyerWord(currentWord, MAX_SPELLER_WORD);
-    if (strcmp(currentWord, wantedWord) == 0)
-    {
-      printf("\nYou Solved it! Typed: %s", wantedWord);
-      break;
-    }
-    for (size_t i = 0; i < MAX_SPELLER_WORD; i++)
-    {
-      currentWord[i] = 0;
-    }
+    currentWord[i] = 0;
   }
+  HAL_Delay(500);
 }
 
-bool getKeyerWord(char* currentWord, size_t size)
+bool getKeyerWord(char* currentWord, const char* wantedWord, size_t size)
 {
+  bool firstCharHit = false;
+  //lcd_goto_line(1, 0);
+  bool checkAgainstWord = currentWord != NULL || wantedWord != NULL;
+
   int tipState = 0;
   int ring2State = 0;
 
-  int state = 0;
+  AllowedInputContact state = AllowedInputContact::Unrestricted;
   int currentTime = 0;
 
-  int whiteSpaceState = 2;
+  WhiteSpaceState whiteSpaceState = WhiteSpaceState::StartOfWord;
   int lastTime = HAL_GetTick();
   unsigned int currentWordPosition = 0;
   while (true)
@@ -168,51 +184,64 @@ bool getKeyerWord(char* currentWord, size_t size)
     // Makes more responsive after time without user input
     do {
       currentTime = HAL_GetTick();
-      if (whiteSpaceState == 0 && currentTime - lastTime >= longSignalLengthMS)
+      if (whiteSpaceState == WhiteSpaceState::RecievedLetter && currentTime - lastTime >= longSignalLengthMS)
       {
-        char currentChar = Translator.translate();
-        if (currentWord != NULL)
+        if (!firstCharHit)
         {
-          currentWord[currentWordPosition++] = currentChar;
+          firstCharHit = true;
+          lcd_clear();
+          HAL_Delay(5);
         }
+        char currentChar = Translator.translate();
         printf("%c", currentChar);
-        whiteSpaceState = 1;
+        lcd_send_data(currentChar);
+        if (checkAgainstWord)
+        {
+          if (wantedWord[currentWordPosition] == currentChar)
+          {
+            currentWord[currentWordPosition++] = currentChar;
+          }
+        }
+        whiteSpaceState = WhiteSpaceState::ProcessedLetter;
       }
-      if ( whiteSpaceState == 1 && currentTime - lastTime >= (longSignalLengthMS + longSignalLengthMS + shortSignalLengthMS))
+      if ( whiteSpaceState == WhiteSpaceState::ProcessedLetter && currentTime - lastTime >= (longSignalLengthMS + longSignalLengthMS + shortSignalLengthMS))
       {
         printf(" ");
-        whiteSpaceState = 2;
-        return true;
+        //lcd_send_data(' ');
+        whiteSpaceState = WhiteSpaceState::StartOfWord;
+        
+        return (strcmp(currentWord, wantedWord) == 0);
       }
-      // Needed for timing. Shouldnt be too much of an issue
-      HAL_Delay(5);
+      
       tipState = HAL_GPIO_ReadPin(TIP_PIN_PORT, TIP_PIN);
       ring2State = HAL_GPIO_ReadPin(RING1_PIN_PORT, RING1_PIN);
+
     } while (tipState != GPIO_PIN_RESET && ring2State != GPIO_PIN_RESET);
 
-    whiteSpaceState = 0;
+    whiteSpaceState = WhiteSpaceState::RecievedLetter;
+
 
     // Check to see if we have dah pressed after dit was pressed.
     // Allows for oscillating between dit and dah when dah is first
-    if (ring2State == GPIO_PIN_RESET && state == 1)
+    if (ring2State == GPIO_PIN_RESET && state == AllowedInputContact::AwaitingRing)
     {
-      state = 1;
+      state = AllowedInputContact::AwaitingRing;
     }
     else
     {
-      state = 0;
+      state = AllowedInputContact::Unrestricted;
     }
     
-    if (tipState == GPIO_PIN_RESET && state != 1)
+    if (tipState == GPIO_PIN_RESET && state != AllowedInputContact::AwaitingRing)
     {
-      state = 1;
+      state = AllowedInputContact::AwaitingRing;
       
       SpeekerPlayer.playShort();
       Translator.addDot();
     }
-    else if (ring2State == GPIO_PIN_RESET && state != 2)
+    else if (ring2State == GPIO_PIN_RESET && state != AllowedInputContact::AwaitingTip)
     {
-      state = 2;
+      state = AllowedInputContact::AwaitingTip;
       
       SpeekerPlayer.playLong();
       Translator.addDash();
@@ -274,7 +303,7 @@ void SystemClock_Config(void)
   RCC_PeriphCLKInitTypeDef I2C1PeriphClkInit = {0};
 
   I2C1PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_I2C1;
-  I2C1PeriphClkInit.RngClockSelection = RCC_I2C1CLKSOURCE_HSI;
+  I2C1PeriphClkInit.RngClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
 
   if (HAL_RCCEx_PeriphCLKConfig(&I2C1PeriphClkInit) != HAL_OK)
   {
@@ -342,12 +371,6 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LD3_Pin */
-  GPIO_InitTypeDef ledInitStruct = {0};
-  ledInitStruct.Pin = LD3_Pin;
-  ledInitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  ledInitStruct.Pull = GPIO_NOPULL;
-  ledInitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD3_GPIO_Port, &ledInitStruct);
 
   /*Configure GPIO pin : Buzzer*/
   GPIO_InitTypeDef buzzerInitStruct = {0};
@@ -361,14 +384,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef tipInitStruct = {0};
   tipInitStruct.Pin = TIP_PIN;
   tipInitStruct.Mode = GPIO_MODE_INPUT;
-  tipInitStruct.Pull = GPIO_PULLUP;
+  tipInitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(TIP_PIN_PORT, &tipInitStruct);
 
   /* Configure TIP_PIN and RING1_PIN as inputs with pull-up */
   GPIO_InitTypeDef ringInitStruct = {0};
   ringInitStruct.Pin = RING1_PIN;
   ringInitStruct.Mode = GPIO_MODE_INPUT;
-  ringInitStruct.Pull = GPIO_PULLUP;
+  ringInitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(RING1_PIN_PORT, &ringInitStruct);
 
   /* Configure USART2 GPIO pins (PA2=TX, PA3=RX) */
@@ -383,8 +406,8 @@ static void MX_GPIO_Init(void)
   /* Configure I2C1 pints (PA9=scl PA10=sda)*/
   GPIO_InitTypeDef i2cInitStruct = {0};
   i2cInitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10;
-  i2cInitStruct.Mode = GPIO_MODE_AF_PP;
-  i2cInitStruct.Pull = GPIO_NOPULL;
+  i2cInitStruct.Mode = GPIO_MODE_AF_OD;
+  i2cInitStruct.Pull = GPIO_PULLUP;
   i2cInitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   i2cInitStruct.Alternate = GPIO_AF4_I2C1;
   HAL_GPIO_Init(GPIOA, &i2cInitStruct);
@@ -393,12 +416,19 @@ static void MX_GPIO_Init(void)
 
 void MX_I2C1_Init(void)
 {
-      // Initialize I2C
-    i2c1.Instance = I2C1;
-    i2c1.Init.Timing = 0x00303D5B; // Adjust timing as needed
-    i2c1.Init.OwnAddress1 = 0;
-    i2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-    HAL_I2C_Init(&i2c1);
+    hi2c1.Instance = I2C1;
+    hi2c1.Init.Timing = 0x00707CB7;
+    hi2c1.Init.OwnAddress1 = 0;
+    hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+    hi2c1.Init.OwnAddress2 = 0;                           // ADD THIS
+    hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE; // ADD THIS
+    hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE; // ADD THIS
+    hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;     // ADD THIS
+    
+    if (HAL_I2C_Init(&hi2c1) != HAL_OK)                   // ADD ERROR CHECKING
+    {
+        Error_Handler();
+    }
 }
 
 
